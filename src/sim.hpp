@@ -34,22 +34,15 @@ namespace gpe {
 	private:
 		float dx, dt;
 		
-		
 		VkGPU gpu = {};
 		VkFFTConfiguration config = {};
 		VkFFTApplication app = {};
 		VkFFTLaunchParams launchParams = {};
 		VkMemoryAllocateInfo memAllocInfo = {};
 		VkSubmitInfo submitInfo = {};
-		VkBuffer buffer;
+		VkBuffer buffer, kernelBuffer;
 		VkCommandBuffer commandBuffer;
 		VkDeviceMemory memory;
-
-		VkResult InitGPU();
-
-		VkResult CreateBuffers();
-		VkResult SetMemoryAllocInfo(VkMemoryPropertyFlags properties);
-		VkResult AllocateMemory();
 	};
 
 }
