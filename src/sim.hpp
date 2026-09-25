@@ -7,6 +7,17 @@
 #include "MDVector.hpp"
 
 namespace gpe {
+	// Helper for constructing MDVectors that hold Wavefunctions
+	template<typename T>
+	MDVector<T> CreateWavefuncVector(const std::vector<std::size_t> &sim_size) {
+		std::vector<std::size_t> real_size(sim_size.size());
+		for (std::size_t i = 0; i < sim_size.size(); i++) {
+			real_size[i] = 2 * sim_size[i];
+		}
+
+		return MDVector<T>(real_size, 0);
+	}
+
 	class Simulation {
 	public:
 		Simulation(const std::vector<uint64_t> &dims);

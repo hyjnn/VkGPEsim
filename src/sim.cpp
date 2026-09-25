@@ -161,7 +161,6 @@ namespace gpe {
 	VkResult Simulation::CreateBuffers() {
 		VkResult res = VK_SUCCESS;
 
-		VkBuffer buffer;
 		VkBufferCreateInfo bufferInfo = {
 			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
 			.size = *config.bufferSize,

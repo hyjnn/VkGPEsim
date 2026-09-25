@@ -86,7 +86,7 @@ void MDVector<T>::calcSteps() {
 }
 
 template<typename T>
-MDVector<T>::MDVector(std::vector<std::size_t> shape) requires std::default_initializable<T> : shape(shape) {
+MDVector<T>::MDVector(std::vector<std::size_t> shape) requires std::default_initializable<T> : shape(shape), steps(shape.size()) {
     std::size_t size = 1;
     for (auto dim : shape) {
         size *= dim;
@@ -97,7 +97,7 @@ MDVector<T>::MDVector(std::vector<std::size_t> shape) requires std::default_init
 }
 
 template<typename T>
-MDVector<T>::MDVector(std::vector<std::size_t> shape, const T &fill_value) : shape(shape) {
+MDVector<T>::MDVector(std::vector<std::size_t> shape, const T &fill_value) : shape(shape), steps(shape.size()) {
     std::size_t size = 1;
     for (auto dim : shape) {
         size *= dim;
