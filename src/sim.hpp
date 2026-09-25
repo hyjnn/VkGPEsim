@@ -9,11 +9,17 @@
 namespace gpe {
 	class Simulation {
 	public:
-		Simulation(std::vector<uint64_t> dims);
+		Simulation(const std::vector<uint64_t> &dims);
 		~Simulation();
 
-		VkResult WriteWavefunc(const MDVector<float>& source);
-		VkResult ReadWavefunc(MDVector<float>& dest);
+		VkResult WriteWavefunc(const MDVector<float> &source);
+		VkResult ReadWavefunc(MDVector<float> &dest);
+
+		VkResult QueueKick(float dt);
+		// Start simulation
+		VkResult Start();
+		// Wait for simulation to finish
+		VkResult AwaitEnd();
 	private:
 		float dx, dt;
 		
@@ -21,7 +27,9 @@ namespace gpe {
 		VkGPU gpu = {};
 		VkFFTConfiguration config = {};
 		VkFFTApplication app = {};
+		VkFFTLaunchParams launchParams = {};
 		VkMemoryAllocateInfo memAllocInfo = {};
+		VkSubmitInfo submitInfo = {};
 		VkBuffer buffer;
 		VkCommandBuffer commandBuffer;
 		VkDeviceMemory memory;

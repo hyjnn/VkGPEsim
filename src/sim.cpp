@@ -7,9 +7,11 @@
 #include "sim.hpp"
 #include "MDVector.hpp"
 #include "vkFFT/vkFFT_AppManagement/vkFFT_DeleteApp.h"
+#include "vkFFT/vkFFT_AppManagement/vkFFT_RunApp.h"
+#include "vkFFT/vkFFT_Structs/vkFFT_Structs.h"
 
 namespace gpe {
-	Simulation::Simulation(std::vector<uint64_t> dims) {
+	Simulation::Simulation(const std::vector<uint64_t> &dims) {
 		config.FFTdim = dims.size();
 		config.bufferSize = new uint64_t(sizeof(float) * 2);
 		for (std::size_t i = 0; i < dims.size(); i++) {
@@ -21,6 +23,10 @@ namespace gpe {
 		CreateBuffers();
 		SetMemoryAllocInfo(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		AllocateMemory();
+		initializeVkFFT(&app, config);
+		
+		launchParams.buffer = &buffer;
+		launchParams.commandBuffer = &commandBuffer;
 	}
 
 	Simulation::~Simulation() {
@@ -55,6 +61,51 @@ namespace gpe {
 		}
 		std::memcpy(dst.data.data(), raw_data, *config.bufferSize);
 		vkUnmapMemory(gpu.device, memory);
+
+		return res;
+	}
+
+	VkResult Simulation::QueueKick(float dt) {
+		VkFFTResult res = VKFFT_SUCCESS;
+
+		res = VkFFTAppend(&app, -1, &launchParams);
+		if (res) {
+			std::print("VkFFTAppend failed, error code {}\n", static_cast<int>(res));
+			return VK_ERROR_UNKNOWN;
+		}
+
+		return VK_SUCCESS;
+	}
+
+	VkResult Simulation::Start() {
+		VkResult res = VK_SUCCESS;
+		
+		res = vkEndCommandBuffer(commandBuffer);
+		if (res) {
+			std::print("Command buffer end failed, error code {}\n", static_cast<int>(res));
+			return res;
+		}
+
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+		res = vkQueueSubmit(gpu.queue, 1, &submitInfo, gpu.fence);
+		if (res) {
+			std::print("Queue submission failed, error code {}\n", static_cast<int>(res));
+			return res;
+		}
+
+		return res;
+	}
+
+	VkResult Simulation::AwaitEnd() {
+		VkResult res = VK_SUCCESS;
+
+		res = vkWaitForFences(gpu.device, 1, &gpu.fence, VK_TRUE, UINT64_MAX);
+		if (res) {
+			std::print("Wait for fences failed, error code {}\n", static_cast<int>(res));
+			return res;
+		}
 
 		return res;
 	}
