@@ -1,7 +1,5 @@
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <iterator>
 #include <vkFFT/vkFFT.h>
 #include <print>
 
@@ -121,24 +119,10 @@ int main() {
 
 	// Write to buffer
 
-	VkMemoryMapInfo memMapInfo = {};
-	memMapInfo.sType = VK_STRUCTURE_TYPE_MEMORY_MAP_INFO;
-	memMapInfo.memory = memory;
-	memMapInfo.size = bufferInfo.size;
 	void *data;
-	res = vkMapMemory(
-	    gpu.device,
-	    memory,
-	    0,
-	    bufferInfo.size,
-	    0,
-	    &data
-	);
-	*static_cast<float*>(data) = 1.;
-	VkMemoryUnmapInfo memUnmapInfo = {};
-	memUnmapInfo.sType = VK_STRUCTURE_TYPE_MEMORY_UNMAP_INFO;
-	memUnmapInfo.memory = memory;
-	vkUnmapMemory2(gpu.device, &memUnmapInfo);
+	res = vkMapMemory(gpu.device, memory, 0, bufferInfo.size, 0, &data);
+	static_cast<float*>(data)[2] = 1.;
+	vkUnmapMemory(gpu.device, memory);
 
 	// Command buffer allocation
 
@@ -152,6 +136,12 @@ int main() {
 	if (res) {
 		std::print("Command buffer allocation failed, error code {}", static_cast<int>(res));
 	}
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	res = vkBeginCommandBuffer(commandBuffer, &beginInfo);
+	if (res) {
+		std::print("Command buffer begin failed, error code {}", static_cast<int>(res));
+	}
 
 	config.bufferSize = &bufferSize;
 
@@ -160,16 +150,35 @@ int main() {
 	launchParams.buffer = &buffer;
 	launchParams.commandBuffer = &commandBuffer;
 	resFFT = VkFFTAppend(&app, -1, &launchParams);
+	if (resFFT) {
+		std::print("VkFFTAppend failed, error code {}\n", static_cast<int>(resFFT));
+	}
+	res = vkEndCommandBuffer(commandBuffer);
+	if (res) {
+		std::print("Command buffer end failed, error code {}\n", static_cast<int>(res));
+	}
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	res = vkQueueSubmit(gpu.queue, 1, &submitInfo, gpu.fence);
+	if (res) {
+		std::print("Queue submission failed, error code {}\n", static_cast<int>(res));
+	}
+	res = vkWaitForFences(gpu.device, 1, &gpu.fence, VK_TRUE, UINT64_MAX);
+	if (res) {
+		std::print("Wait for fences failed, error code {}\n", static_cast<int>(res));
+	}
 
 	// Reading buffer???
 	
-	vkMapMemory2(gpu.device, &memMapInfo, &data);
+	res = vkMapMemory(gpu.device, memory, 0, bufferInfo.size, 0, &data);
 	float fdata[bufferInfo.size / sizeof(float)];
 	std::memcpy(static_cast<void*>(fdata), data, bufferInfo.size);
-	vkUnmapMemory2(gpu.device, &memUnmapInfo);
+	vkUnmapMemory(gpu.device, memory);
 	
 	for (unsigned i = 0; i < bufferInfo.size / sizeof(float); i++) {
-		std::print("{}", fdata[i]);
+		std::print("{}\n", fdata[i]);
 	}
 
 	// Clearing buffer
