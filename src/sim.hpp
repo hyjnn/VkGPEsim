@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <vulkan/vulkan_core.h>
 #include <utils_vkFFT/utils_VkFFT.h>
 #include "vkFFT/vkFFT_Structs/vkFFT_Structs.h"
@@ -25,14 +26,13 @@ namespace gpe {
 
 		VkResult WriteWavefunc(const MDVector<float> &source);
 		VkResult ReadWavefunc(MDVector<float> &dest);
+		void *MapMemory();
+		void UnmapMemory();
 
-		VkResult QueueKick(float dt);
-		// Start simulation
-		VkResult Start();
-		// Wait for simulation to finish
-		VkResult AwaitEnd();
+		VkResult Kick(float dt);
 	private:
-		float dx, dt;
+		std::vector<uint64_t> shape;
+		float dx = 1, dt = 1;
 		
 		VkGPU gpu = {};
 		VkFFTConfiguration config = {};
@@ -43,6 +43,11 @@ namespace gpe {
 		VkBuffer buffer, kernelBuffer;
 		VkCommandBuffer commandBuffer;
 		VkDeviceMemory memory;
+
+		// Start simulation
+		VkResult Start();
+		// Wait for simulation to finish
+		VkResult AwaitEnd();
 	};
 
 }
