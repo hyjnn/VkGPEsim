@@ -20,6 +20,8 @@ namespace {
     concept Subtractable = requires (T a, T b) { a - b; a -= b; };
     template<typename T>
     concept Multiplicable = requires (T a, T b) { a * b; a *= b; };
+    template<typename T>
+    concept Divisble = requires (T a, T b) { a / b; a /= b; };
 }
 
 template<typename T>
@@ -54,6 +56,7 @@ struct MDVector {
     MDVector<T>& operator+=(MDVector<T>) requires Addable<T>; //Elementwise addition.
     MDVector<T>& operator-=(MDVector<T>) requires Subtractable<T>; //Elementwise subtraction.
     MDVector<T>& operator*=(T) requires Multiplicable<T>; //Elementwise multiplication.
+    MDVector<T>& operator/=(T) requires Divisble<T>;
     friend MDVector<T> operator+(MDVector<T> left, const MDVector<T>& right) requires Addable<T> { //Elementwise addition.
         return left += right;
     };
@@ -165,4 +168,13 @@ MDVector<T> &MDVector<T>::operator*=(T scalar) requires Multiplicable<T> {
     }
 
     return *this;
+}
+
+template <typename T>
+MDVector<T> &MDVector<T>::operator/=(T scalar) requires Divisble<T> {
+	for (std::size_t i = 0; i < data.size(); i++) {
+	    data[i] /= scalar;
+	}
+
+	return *this;
 }
