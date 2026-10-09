@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -43,7 +44,7 @@ namespace gpe {
 			return false;
 		}
 		
-		std::string shape = ShapeToNpy(src.shape);
+		std::string shape = ShapeToNpy(src.shape());
 		// For now assumes we are using 32-bit floats
 		std::string header = "{'descr': '<c8',"
 				     " 'fortran_order': True,"
@@ -58,7 +59,7 @@ namespace gpe {
 		                                         static_cast<char>((header.size() >> 8) & 0xff) };
 		std::string preheader = std::string("\x93NUMPY\x01") + '\x00' + header_len_bytes[0] + header_len_bytes[1];
 		outfile << preheader + header;	
-		outfile.write(reinterpret_cast<const char *>(src.data.data()), src.data.size() * sizeof(float));
+		outfile.write(reinterpret_cast<const char *>(src.raw_data()), src.size() * sizeof(float));
 
 		return true;
 	}
@@ -66,6 +67,7 @@ namespace gpe {
 	Simulation::Simulation(const std::vector<uint64_t> &dims) {
 		config.FFTdim = dims.size();
 		shape = dims;
+		mid_index = dims[0] / 2;
 		config.bufferSize = new uint64_t(sizeof(float) * 2);
 		for (std::size_t i = 0; i < dims.size(); i++) {
 			config.size[i] = dims[i];
@@ -100,7 +102,7 @@ namespace gpe {
 			std::print("Mapping memory failed, error code {}\n", static_cast<int>(res));
 			return res;
 		}
-		std::memcpy(raw_data, source.data.data(), *config.bufferSize);
+		std::memcpy(raw_data, source.raw_data(), *config.bufferSize);
 		vkUnmapMemory(gpu.device, memory);
 
 		return res;
@@ -115,7 +117,7 @@ namespace gpe {
 			std::print("Mapping memory failed, error code {}\n", static_cast<int>(res));
 			return res;
 		}
-		std::memcpy(dst.data.data(), raw_data, *config.bufferSize);
+		std::memcpy(dst.raw_data(), raw_data, *config.bufferSize);
 		vkUnmapMemory(gpu.device, memory);
 
 		return res;
@@ -157,7 +159,6 @@ namespace gpe {
 
 		std::size_t N = *config.bufferSize / sizeof(float);
 
-		float norm = 0;
 		for (std::size_t i = 0; i < N; i += 2) {
 			float k = 2 * std::numbers::pi * i / N / dx;
 			std::complex<float> ekin = -1.0f * k*k * time_step / 2;
@@ -165,8 +166,6 @@ namespace gpe {
 			std::complex<float> prod = (float_data[i] + float_data[i+1]*1.0if) * eigenexp;
 			float_data[i] = prod.real();
 			float_data[i+1] = prod.imag();
-
-			norm += float_data[i]*float_data[i] + float_data[i+1]*float_data[i+1];
 		}
 
 		UnmapMemory();
@@ -181,6 +180,43 @@ namespace gpe {
 		AwaitEnd();
 		
 		return res;
+	}
+
+	void Simulation::Drift(float time_step) {
+		using namespace std::complex_literals;
+
+		void *raw_data = MapMemory();
+		float *float_data = static_cast<float*>(raw_data);
+
+		std::size_t N = *config.bufferSize / sizeof(float);
+		
+		float norm = 0;
+		for (std::size_t i = 0; i < N; i += 2) {
+			std::complex<float> epot = -1.0f * potential(PhysPos(i / 2)) * time_step;
+			std::complex<float> eigenexp = std::exp(epot);
+			std::complex<float> prod = (float_data[i] + float_data[i+1]*1.0if) * eigenexp;
+			float_data[i] = prod.real();
+			float_data[i+1] = prod.imag();
+
+			norm += float_data[i]*float_data[i] + float_data[i+1]*float_data[i+1];
+		}
+		norm = std::sqrt(norm);
+		
+		// For numerical stability
+		std::transform(float_data, float_data + N, float_data, [norm](float val){ return val / norm; });
+
+		UnmapMemory();
+	}
+
+	void Simulation::Run(std::size_t step_count) {
+		for (std::size_t step = 0; step < step_count; step++) {
+			Kick(dt);
+			Drift(dt);
+		}
+	}
+
+	float Simulation::PhysPos(std::size_t i) {
+		return i * dx - mid_index * dx;
 	}
 
 	VkResult Simulation::Start() {

@@ -25,51 +25,70 @@ namespace {
 }
 
 template<typename T>
-struct MDVector {
-    std::vector<T> data;
-    std::vector<std::size_t> shape; //numpy style grid shape
-    std::vector<std::size_t> steps;
-    
-    void calcSteps();
-
-    template<typename ...Idx>
-    requires (std::is_convertible_v<Idx, std::size_t> && ...)
-    std::size_t calcIndex(Idx ...idx) const;
-
-    public:
-    MDVector() = default;
+class MDVector {
+public:
+    constexpr MDVector() = default;
     // Constructs MDVector with given shape with default initialized values.
-    MDVector(std::vector<std::size_t>) requires std::default_initializable<T>;
+    constexpr MDVector(std::vector<std::size_t>) requires std::default_initializable<T>;
     // Constructs MDVector with given shape filled with given value.
-    MDVector(std::vector<std::size_t>, const T&);
+    constexpr MDVector(std::vector<std::size_t>, const T&);
     // Constructs MDVector with given shape and given underlying array.
-    MDVector(std::vector<std::size_t>, T*, T*);
+    constexpr MDVector(std::vector<std::size_t>, T*, T*);
 
     template<typename ...Idx>
     requires (std::is_convertible_v<Idx, std::size_t> && ...)
-    T &operator[](Idx ...idx);
+    constexpr T &operator[](Idx ...idx);
 
     template<typename ...Idx>
     requires (std::is_convertible_v<Idx, std::size_t> && ...)
-    const T &operator[](Idx ...idx) const;
+    constexpr const T &operator[](Idx ...idx) const;
 
-    MDVector<T>& operator+=(MDVector<T>) requires Addable<T>; //Elementwise addition.
-    MDVector<T>& operator-=(MDVector<T>) requires Subtractable<T>; //Elementwise subtraction.
-    MDVector<T>& operator*=(T) requires Multiplicable<T>; //Elementwise multiplication.
-    MDVector<T>& operator/=(T) requires Divisble<T>;
-    friend MDVector<T> operator+(MDVector<T> left, const MDVector<T>& right) requires Addable<T> { //Elementwise addition.
+    // Iterators, getters etc.
+
+    constexpr auto begin() {
+        return data.begin();
+    }
+    constexpr auto end() {
+        return data.end();
+    }
+    constexpr auto begin() const {
+        return data.begin();
+    }
+    constexpr auto end() const {
+        return data.end();
+    }
+
+    constexpr T* raw_data() {
+        return data.data();
+    }
+    constexpr const T* raw_data() const {
+        return data.data();
+    }
+
+    constexpr const std::size_t size() const {
+        return data.size();
+    }
+    constexpr const std::vector<std::size_t> shape() const {
+        return m_shape;
+    }
+
+    constexpr MDVector<T>& operator+=(MDVector<T>) requires Addable<T>; //Elementwise addition.
+    constexpr MDVector<T>& operator-=(MDVector<T>) requires Subtractable<T>; //Elementwise subtraction.
+    constexpr MDVector<T>& operator*=(T) requires Multiplicable<T>; //Elementwise multiplication.
+    constexpr MDVector<T>& operator/=(T) requires Divisble<T>;
+    friend constexpr MDVector<T> operator+(MDVector<T> left, const MDVector<T>& right) requires Addable<T> { //Elementwise addition.
         return left += right;
     };
-    friend MDVector<T> operator-(MDVector<T> left, const MDVector<T>& right) requires Subtractable<T> { //Elementwise subtraction.
+    friend constexpr MDVector<T> operator-(MDVector<T> left, const MDVector<T>& right) requires Subtractable<T> { //Elementwise subtraction.
         return left -= right;
     }
-    friend MDVector<T> operator*(MDVector<T> vector, const T& scalar) requires Multiplicable<T> { //Elementwise multiplication.
+    friend constexpr MDVector<T> operator*(MDVector<T> vector, const T& scalar) requires Multiplicable<T> { //Elementwise multiplication.
         return vector *= scalar;
     }
-    friend MDVector<T> operator*(const T& scalar, MDVector<T> vector) requires Multiplicable<T> { //Elementwise multiplication.
+    friend constexpr MDVector<T> operator*(const T& scalar, MDVector<T> vector) requires Multiplicable<T> { //Elementwise multiplication.
         return vector *= scalar;
     }
-    friend T norm(const MDVector<T> &vec) {
+    friend constexpr T norm(const MDVector<T> &vec) {
         T result = 0;
         for (std::size_t i = 0; i < vec.data.size(); i++) {
             result += vec.data[i]*vec.data[i];
@@ -77,47 +96,58 @@ struct MDVector {
         
         return std::sqrt(result);
     }
+
+private:
+    std::vector<T> data;
+    std::vector<std::size_t> m_shape; //numpy style grid shape
+    std::vector<std::size_t> m_steps;
+    
+    constexpr void calc_steps();
+
+    template<typename ...Idx>
+    requires (std::is_convertible_v<Idx, std::size_t> && ...)
+    constexpr std::size_t calc_index(Idx ...idx) const;
 };
 
 template<typename T>
-void MDVector<T>::calcSteps() {
-    steps[steps.size()-1] = 1;
-    if (steps.size() == 1) return;
-    for (std::size_t i = steps.size()-2; i <= steps.size()-2; i--) {
-        steps[i] = steps[i+1] * shape[i+1];
+constexpr void MDVector<T>::calc_steps() {
+    m_steps[m_steps.size()-1] = 1;
+    if (m_steps.size() == 1) return;
+    for (std::size_t i = m_steps.size()-2; i <= m_steps.size()-2; i--) {
+        m_steps[i] = m_steps[i+1] * m_shape[i+1];
     }
 }
 
 template<typename T>
-MDVector<T>::MDVector(std::vector<std::size_t> shape) requires std::default_initializable<T> : shape(shape), steps(shape.size()) {
+constexpr MDVector<T>::MDVector(std::vector<std::size_t> shape) requires std::default_initializable<T> : m_shape(shape), m_steps(shape.size()) {
     std::size_t size = 1;
     for (auto dim : shape) {
         size *= dim;
     }
     
     data = std::vector<T>(size);
-    calcSteps();
+    calc_steps();
 }
 
 template<typename T>
-MDVector<T>::MDVector(std::vector<std::size_t> shape, const T &fill_value) : shape(shape), steps(shape.size()) {
+constexpr MDVector<T>::MDVector(std::vector<std::size_t> shape, const T &fill_value) : m_shape(shape), m_steps(shape.size()) {
     std::size_t size = 1;
     for (auto dim : shape) {
         size *= dim;
     }
     
     data = std::vector<T>(size, fill_value);
-    calcSteps();
+    calc_steps();
 }
 
 template<typename T>
 template<typename... Idx>
 requires (std::is_convertible_v<Idx, std::size_t> && ...)
-std::size_t MDVector<T>::calcIndex(Idx... idx) const {
+constexpr std::size_t MDVector<T>::calc_index(Idx... idx) const {
     std::vector<std::size_t> indices { static_cast<std::size_t>(idx)... };
     std::size_t index = 0;
-    for (std::size_t i = 0; i < steps.size(); i++) {
-        index += indices[i] * steps[i];
+    for (std::size_t i = 0; i < m_steps.size(); i++) {
+        index += indices[i] * m_steps[i];
     }
 
     return index;
@@ -126,20 +156,20 @@ std::size_t MDVector<T>::calcIndex(Idx... idx) const {
 template<typename T>
 template<typename... Idx>
 requires (std::is_convertible_v<Idx, std::size_t> && ...)
-T &MDVector<T>::operator[](Idx... idx) {
-    return data[calcIndex(idx...)];
+constexpr T &MDVector<T>::operator[](Idx... idx) {
+    return data[calc_index(idx...)];
 }
 
 template<typename T>
 template<typename... Idx>
 requires (std::is_convertible_v<Idx, std::size_t> && ...)
-const T &MDVector<T>::operator[](Idx... idx) const {
-    return data[calcIndex(idx...)];
+constexpr const T &MDVector<T>::operator[](Idx... idx) const {
+    return data[calc_index(idx...)];
 }
 
 template <typename T>
-MDVector<T> &MDVector<T>::operator+=(MDVector<T> other) requires Addable<T> {
-    if (shape != other.shape) {
+constexpr MDVector<T> &MDVector<T>::operator+=(MDVector<T> other) requires Addable<T> {
+    if (m_shape != other.m_shape) {
         throw std::invalid_argument("Addition of MDVectors of unequal sizes.");
     }
     for (std::size_t i = 0; i < data.size(); i++) {
@@ -150,8 +180,8 @@ MDVector<T> &MDVector<T>::operator+=(MDVector<T> other) requires Addable<T> {
 }
 
 template <typename T>
-MDVector<T> &MDVector<T>::operator-=(MDVector<T> other) requires Subtractable<T> {
-    if (shape != other.shape) {
+constexpr MDVector<T> &MDVector<T>::operator-=(MDVector<T> other) requires Subtractable<T> {
+    if (m_shape != other.m_shape) {
         throw std::invalid_argument("Subtraction of MDVectors of unequal sizes.");
     }
     for (std::size_t i = 0; i < data.size(); i++) {
@@ -162,7 +192,7 @@ MDVector<T> &MDVector<T>::operator-=(MDVector<T> other) requires Subtractable<T>
 }
 
 template <typename T>
-MDVector<T> &MDVector<T>::operator*=(T scalar) requires Multiplicable<T> {
+constexpr MDVector<T> &MDVector<T>::operator*=(T scalar) requires Multiplicable<T> {
     for (std::size_t i = 0; i < data.size(); i++) {
         data[i] *= scalar;
     }
@@ -171,7 +201,7 @@ MDVector<T> &MDVector<T>::operator*=(T scalar) requires Multiplicable<T> {
 }
 
 template <typename T>
-MDVector<T> &MDVector<T>::operator/=(T scalar) requires Divisble<T> {
+constexpr MDVector<T> &MDVector<T>::operator/=(T scalar) requires Divisble<T> {
 	for (std::size_t i = 0; i < data.size(); i++) {
 	    data[i] /= scalar;
 	}

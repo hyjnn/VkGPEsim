@@ -9,6 +9,6 @@ if __name__ == "__main__":
 
     fig, ax = plt.subplots(dpi = 300)
 
-    ax.plot(xs, data)
+    ax.plot(xs, np.abs(data))
 
     plt.show()
