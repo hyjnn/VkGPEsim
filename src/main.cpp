@@ -23,15 +23,15 @@ void MomentumState(MDVector<float> &wavefunc, unsigned mode) {
 	gpe::Normalize(wavefunc);
 }
 
-void HarmonicBaseState(MDVector<float> &wavefunc, float omega) {
+void HarmonicBaseState(MDVector<float> &wavefunc, float omega, float dx) {
 	float A = std::pow(omega / std::numbers::pi, .25f);
-	std::complex<float> exponent = -1 * omega / 2;
+	float exponent = -1 * omega / 2;
 	
+	std::size_t N = wavefunc.size() / 2;
 	for (std::size_t i = 0; i < wavefunc.size(); i += 2) {
-		float x = static_cast<float>(i) / wavefunc.size();
-		std::complex<float> exp = std::exp(exponent * x*x);
-		wavefunc[i] = A*exp.real();
-		wavefunc[i+1] = A*exp.imag();
+		float x = i * dx/2 - N * dx / 2;
+		float exp = std::exp(exponent * x*x);
+		wavefunc[i] = A*exp;
 	}
 }
 
@@ -53,13 +53,20 @@ struct HarmonicPotential {
 };
 
 int main() {
-	std::vector<std::size_t> sim_size = { 50 };
+	std::vector<std::size_t> sim_size = { 2000 };
+	// std::cout << "Grid point count:\n>";
+	// std::cin >> sim_size[0];
 	gpe::Simulation testsim(sim_size);
+
 	std::cout << "Time step:\n>";
 	std::cin >> testsim.dt;
 	std::size_t sim_length;
 	std::cout << "Sim length:\n>";
 	std::cin >> sim_length;
+	// float space_length;
+	// std::cout << "Space length:\n>";
+	// std::cin >> space_length;
+	// testsim.dx = space_length / sim_size[0];
 
 	auto potential = HarmonicPotential();
 	std::cout << "Potential coeff:\n>";
@@ -69,7 +76,10 @@ int main() {
 	MDVector<float> base_wavefunc = gpe::CreateWavefuncVector<float>(sim_size);
 
 	RandomState(wavefunc);
-	HarmonicBaseState(base_wavefunc, potential.coeff);
+	HarmonicBaseState(base_wavefunc, std::sqrt(2*potential.coeff), testsim.dx);
+	std::complex<float> prod = gpe::InnerProduct(wavefunc, base_wavefunc);
+	// gpe::Scale(base_wavefunc, prod);
+	wavefunc = base_wavefunc;
 	
 	
 	testsim.WriteWavefunc(wavefunc);
@@ -77,7 +87,7 @@ int main() {
 	testsim.ReadWavefunc(wavefunc);
 
 	std::print("Norm: {}\n", std::accumulate(wavefunc.begin(), wavefunc.end(), 0.f, 
-	           [](float acc, float next){ return acc + next*next; }));
+	           [](float acc, float next){ return acc + next*next; })*testsim.dx);
 	
 	gpe::SaveWavefunc(wavefunc, "results/test.npy");
 }

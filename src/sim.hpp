@@ -1,5 +1,6 @@
 #pragma once
 
+#include <complex>
 #include <cstdint>
 #include <functional>
 #include <numbers>
@@ -20,10 +21,10 @@
  * - Use GPU (convolution) for kick pointwise mult
  * - Use GPU/CPU multithread for drift pointwise mult 
  * - Make potential a template argument or something (std::function is slower)
+ * - I use std::complex in some calculations. This almost always involves unnecessary copies.
  */
 
 namespace gpe {
-	// Helper for constructing MDVectors that hold Wavefunctions
 
 	inline void Normalize(MDVector<float> &wavefunc) {
 		float norm = std::accumulate(wavefunc.begin(), wavefunc.end(), 0.f,
@@ -33,11 +34,32 @@ namespace gpe {
 		wavefunc /= norm;
 	}
 
-	// template<typename T>
-	// InnerProduct(MDVector<T> phi, MDVector<T> psi) {
-	// 	for (std::size_t i
-	// }
+	template<typename T>
+	std::complex<float> InnerProduct(MDVector<T> phi, MDVector<T> psi) {
+		using namespace std::complex_literals;
 
+		std::complex<float> result = 0;
+		for (std::size_t i = 0; i < phi.size(); i += 2) {
+			std::complex<float> phi_val = phi[i] + phi[i+1] * 1.fi;
+			std::complex<float> psi_val = psi[i] + psi[i+1] * 1.fi;
+
+			result += phi_val * psi_val;
+		}
+
+		return result;
+	}
+
+	template<typename T>
+	void Scale(MDVector<T> phi, std::complex<T> scalar) {
+		using namespace std::complex_literals;
+
+		for (std::size_t i = 0; i < phi.size(); i += 2) {
+			phi[i] = phi[i] * scalar.real() - phi[i+1] * scalar.imag();
+			phi[i+1] = phi[i] * scalar.imag() + phi[i+1] * scalar.real();
+		}
+	}
+
+	// Helper for constructing MDVectors that hold Wavefunctions
 	template<typename T>
 	inline MDVector<T> CreateWavefuncVector(const std::vector<std::size_t> &sim_size) {
 		std::vector<std::size_t> real_size(sim_size.size());

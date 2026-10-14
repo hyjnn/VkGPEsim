@@ -161,6 +161,9 @@ namespace gpe {
 
 		for (std::size_t i = 0; i < N; i += 2) {
 			float k = 2 * std::numbers::pi * i / N / dx;
+			if (i > N / 2) {
+				k -= std::numbers::pi / dx;
+			}
 			std::complex<float> ekin = -1.0f * k*k * time_step / 2;
 			std::complex<float> eigenexp = std::exp(ekin);
 			std::complex<float> prod = (float_data[i] + float_data[i+1]*1.0if) * eigenexp;
@@ -200,7 +203,7 @@ namespace gpe {
 
 			norm += float_data[i]*float_data[i] + float_data[i+1]*float_data[i+1];
 		}
-		norm = std::sqrt(norm);
+		norm = std::sqrt(norm*dx);
 		
 		// For numerical stability
 		std::transform(float_data, float_data + N, float_data, [norm](float val){ return val / norm; });
@@ -210,8 +213,9 @@ namespace gpe {
 
 	void Simulation::Run(std::size_t step_count) {
 		for (std::size_t step = 0; step < step_count; step++) {
+			Drift(dt / 2);
 			Kick(dt);
-			Drift(dt);
+			Drift(dt / 2);
 		}
 	}
 

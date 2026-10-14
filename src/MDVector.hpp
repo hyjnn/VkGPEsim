@@ -1,6 +1,5 @@
 /*
     To be improved:
-    Add shape getter
     Think more about allowing shape to have zeros in it
     Add reshaping/resizing
     Add slicing (maybe using std::ranges??? I need to check if that even makes sense)
