@@ -66,7 +66,7 @@ namespace gpe {
 
 	Simulation::Simulation(const std::vector<uint64_t> &dims) {
 		config.FFTdim = dims.size();
-		shape = dims;
+		m_shape = dims;
 		mid_index = dims[0] / 2;
 		config.bufferSize = new uint64_t(sizeof(float) * 2);
 		for (std::size_t i = 0; i < dims.size(); i++) {
@@ -162,7 +162,7 @@ namespace gpe {
 		for (std::size_t i = 0; i < N; i += 2) {
 			float k = 2 * std::numbers::pi * i / N / dx;
 			if (i > N / 2) {
-				k -= std::numbers::pi / dx;
+				k -= 2 * std::numbers::pi / dx;
 			}
 			std::complex<float> ekin = -1.0f * k*k * time_step / 2;
 			std::complex<float> eigenexp = std::exp(ekin);
@@ -195,8 +195,10 @@ namespace gpe {
 		
 		float norm = 0;
 		for (std::size_t i = 0; i < N; i += 2) {
-			std::complex<float> epot = -1.0f * potential(PhysPos(i / 2)) * time_step;
-			std::complex<float> eigenexp = std::exp(epot);
+			std::complex<float> epot = potential(PhysPos(i / 2));
+			float density = float_data[i]*float_data[i] + float_data[i+1]*float_data[i+1];
+			epot += g * density * (float_data[i] + float_data[i+1]*1.0if);
+			std::complex<float> eigenexp = std::exp(-1.f * epot * time_step);
 			std::complex<float> prod = (float_data[i] + float_data[i+1]*1.0if) * eigenexp;
 			float_data[i] = prod.real();
 			float_data[i+1] = prod.imag();

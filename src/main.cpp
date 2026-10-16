@@ -3,12 +3,12 @@
 #include <chrono>
 #include <cmath>
 #include <complex>
+#include <cstdlib>
 #include <iostream>
 #include <numbers>
 #include <numeric>
 #include <print>
 #include <random>
-#include <vector>
 
 void MomentumState(MDVector<float> &wavefunc, unsigned mode) {
 	using namespace std::complex_literals;
@@ -45,6 +45,18 @@ void RandomState(MDVector<float> &wavefunc) {
 	gpe::Normalize(wavefunc);
 }
 
+void ProjectPerp(MDVector<float> &projectee, MDVector<float> projector) {
+	std::complex<float> prod = gpe::InnerProduct(projectee, projector);
+	gpe::Scale(projector, prod);
+	projectee -= projector;
+}
+
+struct NullPotential {
+	float operator()(float x) {
+		return 0.f;
+	}
+};
+
 struct HarmonicPotential {
 	float coeff = 0.5f; // In our units this is just omega^2/2, base-state energy is sqrt(coeff/2)
 	float operator()(float x) {
@@ -52,41 +64,43 @@ struct HarmonicPotential {
 	}
 };
 
-int main() {
-	std::vector<std::size_t> sim_size = { 2000 };
-	// std::cout << "Grid point count:\n>";
-	// std::cin >> sim_size[0];
-	gpe::Simulation testsim(sim_size);
+struct ModifiedHarmonicPotential {
+	float coeff = 0.5f;
+	float gauge = 0.5f;
+	float operator()(float x) {
+		return coeff*x*x - gauge;
+	}
+};
 
-	std::cout << "Time step:\n>";
-	std::cin >> testsim.dt;
+int main() {
+	float space_length, space_step_ratio, g;
+	std::cout << "Space length:\n>";
+	std::cin >> space_length;
+	std::cout << "g:\n>";
+	std::cin >> g;
+	std::cout << "Space step ratio:\n>";
+	std::cin >> space_step_ratio;
+	gpe::Simulation testsim = gpe::CreateGPESim(space_length, g, space_step_ratio);
+
+
 	std::size_t sim_length;
 	std::cout << "Sim length:\n>";
 	std::cin >> sim_length;
-	// float space_length;
-	// std::cout << "Space length:\n>";
-	// std::cin >> space_length;
-	// testsim.dx = space_length / sim_size[0];
 
-	auto potential = HarmonicPotential();
+	auto potential = ModifiedHarmonicPotential();
 	std::cout << "Potential coeff:\n>";
 	std::cin >> potential.coeff;
-	testsim.potential = potential;
-	MDVector<float> wavefunc = gpe::CreateWavefuncVector<float>(sim_size);
-	MDVector<float> base_wavefunc = gpe::CreateWavefuncVector<float>(sim_size);
+	potential.gauge = 3*std::sqrt(potential.coeff/2);
+	testsim.potential = NullPotential();
+	MDVector<float> wavefunc = gpe::CreateWavefuncVector<float>(testsim.shape());
 
 	RandomState(wavefunc);
-	HarmonicBaseState(base_wavefunc, std::sqrt(2*potential.coeff), testsim.dx);
-	std::complex<float> prod = gpe::InnerProduct(wavefunc, base_wavefunc);
-	// gpe::Scale(base_wavefunc, prod);
-	wavefunc = base_wavefunc;
-	
 	
 	testsim.WriteWavefunc(wavefunc);
 	testsim.Run(sim_length);
 	testsim.ReadWavefunc(wavefunc);
 
-	std::print("Norm: {}\n", std::accumulate(wavefunc.begin(), wavefunc.end(), 0.f, 
+	std::print("Base state norm: {}\n", std::accumulate(wavefunc.begin(), wavefunc.end(), 0.f, 
 	           [](float acc, float next){ return acc + next*next; })*testsim.dx);
 	
 	gpe::SaveWavefunc(wavefunc, "results/test.npy");

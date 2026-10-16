@@ -67,7 +67,7 @@ public:
     constexpr const std::size_t size() const {
         return data.size();
     }
-    constexpr const std::vector<std::size_t> shape() const {
+    constexpr const std::vector<std::size_t> &shape() const {
         return m_shape;
     }
 

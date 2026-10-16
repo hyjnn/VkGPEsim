@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cmath>
 #include <complex>
 #include <cstdint>
 #include <functional>
 #include <numbers>
 #include <numeric>
+#include <optional>
 #include <string>
 #include <vulkan/vulkan_core.h>
 #include <utils_vkFFT/utils_VkFFT.h>
@@ -16,6 +18,7 @@
 
 /* Improvements and possible optimizations:
  * - Add multiple dimensions
+ * - Add mid step
  * - Add custom float types
  * - Overall code cleanup
  * - Use GPU (convolution) for kick pointwise mult
@@ -77,9 +80,13 @@ namespace gpe {
 		Simulation(const std::vector<std::uint64_t> &dims);
 		~Simulation();
 
-		float dx = 1, dt = 1, g = 4 * std::numbers::pi;
+		float dx = 1, dt = 1, g = 4 * std::numbers::pi * 2;
 		std::size_t mid_index; // index corresponding to x=0, initialized as shape[i]/2
 		std::function<float(float)> potential;
+
+		const std::vector<std::size_t> &shape() {
+			return m_shape;
+		}
 
 		VkResult WriteWavefunc(const MDVector<float> &source);
 		VkResult ReadWavefunc(MDVector<float> &dest);
@@ -92,7 +99,7 @@ namespace gpe {
 		void Run(std::size_t step_count);
 
 	private:
-		std::vector<std::uint64_t> shape;
+		std::vector<std::uint64_t> m_shape;
 
 		VkGPU gpu = {};
 		VkFFTConfiguration config = {};
@@ -111,5 +118,18 @@ namespace gpe {
 		// Wait for simulation to finish
 		VkResult AwaitEnd();
 	};
+	
+	// Create GP eq simulation with dx = xi/r
+	inline Simulation CreateGPESim(float length, float g, float r, std::optional<float> dt = std::nullopt) {
+		float dx = std::sqrt(.5 * length / g) / r;
 
+		Simulation result({ static_cast<std::size_t>(length / dx) });
+		result.dx = dx;
+		result.g = g;
+
+		if (!dt) dt = 2 * dx*dx / 5;
+		result.dt = *dt;
+
+		return result;
+	}
 }
