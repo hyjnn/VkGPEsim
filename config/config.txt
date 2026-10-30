@@ -1,0 +1,6 @@
+x_span=10
+g=125.663706144
+x_step_ratio=500
+sim_duration=100
+time_step=2e-4
+soliton_distance=2

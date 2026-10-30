@@ -139,7 +139,7 @@ namespace gpe {
 		vkUnmapMemory(gpu.device, memory);
 	}
 
-	VkResult Simulation::Kick(float time_step) {
+	VkResult Simulation::Kick(std::complex<float> time_step) {
 		using namespace std::complex_literals;
 
 		VkFFTResult fftres = VKFFT_SUCCESS;
@@ -164,7 +164,7 @@ namespace gpe {
 			if (i > N / 2) {
 				k -= 2 * std::numbers::pi / dx;
 			}
-			std::complex<float> ekin = -1.0f * k*k * time_step / 2;
+			std::complex<float> ekin = -1.0if * k*k * time_step / 2.f;
 			std::complex<float> eigenexp = std::exp(ekin);
 			std::complex<float> prod = (float_data[i] + float_data[i+1]*1.0if) * eigenexp;
 			float_data[i] = prod.real();
@@ -185,7 +185,7 @@ namespace gpe {
 		return res;
 	}
 
-	void Simulation::Drift(float time_step) {
+	void Simulation::Drift(std::complex<float> time_step) {
 		using namespace std::complex_literals;
 
 		void *raw_data = MapMemory();
@@ -197,8 +197,8 @@ namespace gpe {
 		for (std::size_t i = 0; i < N; i += 2) {
 			std::complex<float> epot = potential(PhysPos(i / 2));
 			float density = float_data[i]*float_data[i] + float_data[i+1]*float_data[i+1];
-			epot += g * density * (float_data[i] + float_data[i+1]*1.0if);
-			std::complex<float> eigenexp = std::exp(-1.f * epot * time_step);
+			epot += g * density;
+			std::complex<float> eigenexp = std::exp(-1.if * epot * time_step);
 			std::complex<float> prod = (float_data[i] + float_data[i+1]*1.0if) * eigenexp;
 			float_data[i] = prod.real();
 			float_data[i+1] = prod.imag();
@@ -208,16 +208,18 @@ namespace gpe {
 		norm = std::sqrt(norm*dx);
 		
 		// For numerical stability
-		std::transform(float_data, float_data + N, float_data, [norm](float val){ return val / norm; });
-
+		if (time_step.imag()) {
+			std::transform(float_data, float_data + N, float_data,
+				       [norm](float val){ return val / norm; });
+		}
 		UnmapMemory();
 	}
 
 	void Simulation::Run(std::size_t step_count) {
 		for (std::size_t step = 0; step < step_count; step++) {
-			Drift(dt / 2);
+			Drift(dt / 2.f);
 			Kick(dt);
-			Drift(dt / 2);
+			Drift(dt / 2.f);
 		}
 	}
 

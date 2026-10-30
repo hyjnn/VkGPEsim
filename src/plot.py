@@ -21,7 +21,11 @@ if __name__ == "__main__":
     filename, no_fit = parse_terminal_args()
 
     data = np.load(filename)
-    xs = np.arange(data.size) - data.size // 2
+    # xs = np.arange(data.size) - data.size // 2
+    dx = 10 / 800
+    xmin = -1 * data.size // 2 * dx
+    xmax = (data.size // 2 - 1) * dx
+    xs = np.linspace(xmin, xmax, data.size)
 
     fig, ax = plt.subplots(dpi = 300)
 

@@ -28,10 +28,9 @@
  */
 
 namespace gpe {
-
-	inline void Normalize(MDVector<float> &wavefunc) {
+	inline void Normalize(MDVector<float> &wavefunc, float dx) {
 		float norm = std::accumulate(wavefunc.begin(), wavefunc.end(), 0.f,
-					     [](float acc, float next){ return acc + next*next; });
+					     [](float acc, float next){ return acc + next*next; })*dx;
 		norm = std::sqrt(norm);
 
 		wavefunc /= norm;
@@ -80,7 +79,8 @@ namespace gpe {
 		Simulation(const std::vector<std::uint64_t> &dims);
 		~Simulation();
 
-		float dx = 1, dt = 1, g = 4 * std::numbers::pi * 2;
+		float dx = 1, g = 4 * std::numbers::pi * 2;
+		std::complex<float> dt;
 		std::size_t mid_index; // index corresponding to x=0, initialized as shape[i]/2
 		std::function<float(float)> potential;
 
@@ -93,8 +93,8 @@ namespace gpe {
 		void *MapMemory();
 		void UnmapMemory();
 
-		VkResult Kick(float time_step);
-		void Drift(float time_step);
+		VkResult Kick(std::complex<float> time_step);
+		void Drift(std::complex<float> time_step);
 
 		void Run(std::size_t step_count);
 
@@ -120,9 +120,14 @@ namespace gpe {
 	};
 	
 	// Create GP eq simulation with dx = xi/r
-	inline Simulation CreateGPESim(float length, float g, float r, std::optional<float> dt = std::nullopt) {
-		float dx = std::sqrt(.5 * length / g) / r;
-
+	inline Simulation CreateGPESim(float length, float g, float rx, std::optional<float> dt = std::nullopt) {
+		float dx;
+		if (g == 0) {
+			dx = length / rx;
+		}
+		else {
+			dx = std::sqrt(length / g) / rx;
+		}
 		Simulation result({ static_cast<std::size_t>(length / dx) });
 		result.dx = dx;
 		result.g = g;

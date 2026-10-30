@@ -31,9 +31,12 @@ target_compile_features(sim_backend PUBLIC cxx_std_23)
 target_link_libraries(sim_backend PUBLIC MDVeclib)
 target_link_libraries(sim_backend PUBLIC VkFFT utils_VkFFT vkHelpers)
 
+add_library(sim_config INTERFACE)
+target_include_directories(sim_config INTERFACE src)
+target_compile_features(sim_config INTERFACE cxx_std_20)
+
 add_executable(GPEsim_exe src/main.cpp)
 target_include_directories(GPEsim_exe PRIVATE src)
 target_link_libraries(GPEsim_exe PRIVATE sim_backend)
 target_compile_features(GPEsim_exe PRIVATE cxx_std_23)
 set_property(TARGET GPEsim_exe PROPERTY OUTPUT_NAME GPEsim)
-
