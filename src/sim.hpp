@@ -8,6 +8,7 @@
 #include <numeric>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <vulkan/vulkan_core.h>
 #include <utils_vkFFT/utils_VkFFT.h>
 #include "vkFFT/vkFFT_Structs/vkFFT_Structs.h"
@@ -79,15 +80,15 @@ namespace gpe {
 		Simulation(const std::vector<std::uint64_t> &dims);
 		~Simulation();
 
-		float dx = 1, g = 4 * std::numbers::pi * 2;
+		float g = 4 * std::numbers::pi * 2;
 		std::complex<float> dt;
-		std::size_t mid_index; // index corresponding to x=0, initialized as shape[i]/2
+		std::vector<std::size_t> mid_index; // index corresponding to x=0, initialized as shape[i]/2
 		std::function<float(float)> potential;
 
 		const std::vector<std::size_t> &shape() {
 			return m_shape;
 		}
-
+		void Setdx(std::vector<float> new_dx);
 		VkResult WriteWavefunc(const MDVector<float> &source);
 		VkResult ReadWavefunc(MDVector<float> &dest);
 		void *MapMemory();
@@ -100,6 +101,7 @@ namespace gpe {
 
 	private:
 		std::vector<std::uint64_t> m_shape;
+		std::vector<float> m_dx, m_dp; // Position and momentum space steps
 
 		VkGPU gpu = {};
 		VkFFTConfiguration config = {};
@@ -111,8 +113,26 @@ namespace gpe {
 		VkCommandBuffer commandBuffer;
 		VkDeviceMemory memory;
 
-		// Translates grid index to physical position
-		float PhysPos(std::size_t i);
+		// Translates buffer index to physical position
+		float PhysPos(std::size_t i) const {	
+			std::size_t index = 0;
+			for (std::size_t j = 0; j < m_dx.size(); j++) {
+				index += (i % m_shape[j]) * m_dx[j];
+				i /= m_shape[j];
+			}
+
+			return index;
+		}
+		// Translates buffer index to momentum space position
+		float MomentumPos(std::size_t i) {			
+			std::size_t index = 0;
+			for (std::size_t j = 0; j < m_dx.size(); j++) {
+				index += (i % m_shape[j]) * m_dp[j];
+				i /= m_shape[j];
+			}
+
+			return index;
+		}
 		// Start simulation
 		VkResult Start();
 		// Wait for simulation to finish
@@ -129,7 +149,7 @@ namespace gpe {
 			dx = std::sqrt(length / g) / rx;
 		}
 		Simulation result({ static_cast<std::size_t>(length / dx) });
-		result.dx = dx;
+		result.Setdx({ dx });
 		result.g = g;
 
 		if (!dt) dt = 2 * dx*dx / 5;

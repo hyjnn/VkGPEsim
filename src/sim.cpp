@@ -67,9 +67,11 @@ namespace gpe {
 	Simulation::Simulation(const std::vector<uint64_t> &dims) {
 		config.FFTdim = dims.size();
 		m_shape = dims;
-		mid_index = dims[0] / 2;
 		config.bufferSize = new uint64_t(sizeof(float) * 2);
 		for (std::size_t i = 0; i < dims.size(); i++) {
+			mid_index[i] = dims[i] / 2;
+			m_dx[i] = 1;
+			m_dp[i] = 2*std::numbers::pi/m_dx[i]/m_shape[i];
 			config.size[i] = dims[i];
 			*config.bufferSize *= dims[i];
 		}
@@ -91,6 +93,11 @@ namespace gpe {
 		vkDestroyBuffer(gpu.device, buffer, nullptr);
 		vkFreeMemory(gpu.device, memory, nullptr);
 		deleteVkFFT(&app);
+	}
+
+	void Simulation::Setdx(std::vector<float> new_dx) {
+		m_dx = new_dx;
+		std::transform(m_dx.begin(), m_dx.end(), m_dp.begin(), [](float val){ return val/2; });
 	}
 
 	VkResult Simulation::WriteWavefunc(const MDVector<float>& source) {
