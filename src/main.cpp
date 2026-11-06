@@ -7,7 +7,6 @@
 #include <complex>
 #include <cstdlib>
 #include <fstream>
-#include <iostream>
 #include <numbers>
 #include <numeric>
 #include <print>
@@ -82,23 +81,27 @@ void ProjectPerp(MDVector<float> &projectee, MDVector<float> projector) {
 }
 
 struct NullPotential {
-	float operator()(float x) {
+	float operator()(const std::vector<float> &x) {
 		return 0.f;
 	}
 };
 
 struct HarmonicPotential {
 	float coeff = 0.5f; // In our units this is just omega^2/2, base-state energy is sqrt(coeff/2)
-	float operator()(float x) {
-		return coeff*x*x;
+	float operator()(const std::vector<float> &x) {
+		float r_sqr = std::reduce(x.begin(), x.end(), 1.0,
+		                          [](float acc, float val){ return acc*val*val; });
+		return coeff*r_sqr;
 	}
 };
 
 struct GaugedHarmonicPotential {
 	float coeff = 0.5f;
 	float gauge = 0.5f;
-	float operator()(float x) {
-		return coeff*x*x - gauge;
+	float operator()(const std::vector<float> &x) {
+		float r_sqr = std::reduce(x.begin(), x.end(), 1.0,
+		                          [](float acc, float val){ return acc*val*val; });
+		return coeff*r_sqr - gauge;
 	}
 };
 
@@ -124,7 +127,7 @@ int main(int argc, char **argv) {
 	testsim.potential = NullPotential();
 	MDVector<float> wavefunc = gpe::CreateWavefuncVector<float>(testsim.shape());
 
-	DoubleSoliton(wavefunc, soliton_distance, std::sqrt(space_length / g), testsim.dx);
+	DoubleSoliton(wavefunc, soliton_distance, std::sqrt(space_length / g), testsim.Getdx(0));
 	// RandomState(wavefunc, testsim.dx);
 	// HarmonicBaseState(wavefunc, 1, testsim.dx);
 	// KickState(wavefunc, 1, testsim.dx);
@@ -136,7 +139,7 @@ int main(int argc, char **argv) {
 	testsim.ReadWavefunc(wavefunc);
 
 	std::print("Base state norm: {}\n", std::accumulate(wavefunc.begin(), wavefunc.end(), 0.f, 
-	           [](float acc, float next){ return acc + next*next; })*testsim.dx);
+	           [](float acc, float next){ return acc + next*next; })*testsim.Getdx(0));
 	
 	gpe::SaveWavefunc(wavefunc, "results/test.npy");
 }

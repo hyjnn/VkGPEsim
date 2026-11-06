@@ -6,6 +6,7 @@
 #include <format>
 #include <fstream>
 #include <numbers>
+#include <numeric>
 #include <print>
 #include <string>
 #include <vector>
@@ -67,6 +68,9 @@ namespace gpe {
 	Simulation::Simulation(const std::vector<uint64_t> &dims) {
 		config.FFTdim = dims.size();
 		m_shape = dims;
+		mid_index.resize(dims.size());
+		m_dx.resize(dims.size());
+		m_dp.resize(dims.size());
 		config.bufferSize = new uint64_t(sizeof(float) * 2);
 		for (std::size_t i = 0; i < dims.size(); i++) {
 			mid_index[i] = dims[i] / 2;
@@ -98,6 +102,14 @@ namespace gpe {
 	void Simulation::Setdx(std::vector<float> new_dx) {
 		m_dx = new_dx;
 		std::transform(m_dx.begin(), m_dx.end(), m_dp.begin(), [](float val){ return val/2; });
+	}
+
+	const std::vector<float> &Simulation::Getdx() const {
+		return m_dx;
+	}
+
+	const float &Simulation::Getdx(std::size_t i) const {
+		return m_dx.at(i);
 	}
 
 	VkResult Simulation::WriteWavefunc(const MDVector<float>& source) {
@@ -167,11 +179,8 @@ namespace gpe {
 		std::size_t N = *config.bufferSize / sizeof(float);
 
 		for (std::size_t i = 0; i < N; i += 2) {
-			float k = 2 * std::numbers::pi * i / N / dx;
-			if (i > N / 2) {
-				k -= 2 * std::numbers::pi / dx;
-			}
-			std::complex<float> ekin = -1.0if * k*k * time_step / 2.f;
+			float k_sqr = MomentumNormSqr(i);
+			std::complex<float> ekin = -1.0if * k_sqr * time_step / 2.f;
 			std::complex<float> eigenexp = std::exp(ekin);
 			std::complex<float> prod = (float_data[i] + float_data[i+1]*1.0if) * eigenexp;
 			float_data[i] = prod.real();
@@ -210,12 +219,15 @@ namespace gpe {
 			float_data[i] = prod.real();
 			float_data[i+1] = prod.imag();
 
-			norm += float_data[i]*float_data[i] + float_data[i+1]*float_data[i+1];
+			if (time_step.imag()) {
+				norm += float_data[i]*float_data[i] + float_data[i+1]*float_data[i+1];
+			}
 		}
-		norm = std::sqrt(norm*dx);
-		
 		// For numerical stability
 		if (time_step.imag()) {
+			norm *= std::reduce(m_dx.begin(), m_dx.end(), 1.0f,
+					    [](float acc, float val){ return acc*val; });
+			norm = std::sqrt(norm);
 			std::transform(float_data, float_data + N, float_data,
 				       [norm](float val){ return val / norm; });
 		}
@@ -230,8 +242,32 @@ namespace gpe {
 		}
 	}
 
-	float Simulation::PhysPos(std::size_t i) {
-		return i * dx - mid_index * dx;
+	std::vector<float> Simulation::PhysPos(std::size_t i) const {	
+		std::vector<float> pos(m_shape.size(), 0);
+
+		for (std::size_t j = 0; j < pos.size(); j++) {
+			pos[j] += (i % m_shape[j]) * m_dx[j];
+			i /= m_shape[j];
+		}
+
+		return pos;
+	}
+	float Simulation::MomentumNormSqr(std::size_t i) const {			
+		float k2 = 0;
+
+		i /= 2; // Get rid of double counting due to complex values
+		for (std::size_t j = 0; j < m_dx.size(); j++) {
+			long eff_i = i % m_shape[j];
+			if (eff_i > m_shape[j]/2) {
+				eff_i -= m_shape[j]; // Get negative momenta
+			}
+
+			float k_comp = eff_i * m_dp[j];
+			k2 += k_comp*k_comp;
+			i /= m_shape[j]; // Get ready for next dimension
+		}
+
+		return k2;
 	}
 
 	VkResult Simulation::Start() {

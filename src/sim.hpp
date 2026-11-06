@@ -8,7 +8,6 @@
 #include <numeric>
 #include <optional>
 #include <string>
-#include <type_traits>
 #include <vulkan/vulkan_core.h>
 #include <utils_vkFFT/utils_VkFFT.h>
 #include "vkFFT/vkFFT_Structs/vkFFT_Structs.h"
@@ -30,8 +29,8 @@
 
 namespace gpe {
 	inline void Normalize(MDVector<float> &wavefunc, float dx) {
-		float norm = std::accumulate(wavefunc.begin(), wavefunc.end(), 0.f,
-					     [](float acc, float next){ return acc + next*next; })*dx;
+		float norm = std::reduce(wavefunc.begin(), wavefunc.end(), 0.f,
+		                         [](float acc, float next){ return acc + next*next; })*dx;
 		norm = std::sqrt(norm);
 
 		wavefunc /= norm;
@@ -83,12 +82,17 @@ namespace gpe {
 		float g = 4 * std::numbers::pi * 2;
 		std::complex<float> dt;
 		std::vector<std::size_t> mid_index; // index corresponding to x=0, initialized as shape[i]/2
-		std::function<float(float)> potential;
+		std::function<float(const std::vector<float> &)> potential;
 
 		const std::vector<std::size_t> &shape() {
 			return m_shape;
 		}
 		void Setdx(std::vector<float> new_dx);
+		// Get the entire dx vector
+		const std::vector<float> &Getdx() const;
+		// Get ith component of dx (i.e. dx_i)
+		const float &Getdx(std::size_t i) const;
+
 		VkResult WriteWavefunc(const MDVector<float> &source);
 		VkResult ReadWavefunc(MDVector<float> &dest);
 		void *MapMemory();
@@ -114,25 +118,9 @@ namespace gpe {
 		VkDeviceMemory memory;
 
 		// Translates buffer index to physical position
-		float PhysPos(std::size_t i) const {	
-			std::size_t index = 0;
-			for (std::size_t j = 0; j < m_dx.size(); j++) {
-				index += (i % m_shape[j]) * m_dx[j];
-				i /= m_shape[j];
-			}
-
-			return index;
-		}
-		// Translates buffer index to momentum space position
-		float MomentumPos(std::size_t i) {			
-			std::size_t index = 0;
-			for (std::size_t j = 0; j < m_dx.size(); j++) {
-				index += (i % m_shape[j]) * m_dp[j];
-				i /= m_shape[j];
-			}
-
-			return index;
-		}
+		std::vector<float> PhysPos(std::size_t i) const;
+		// Translates buffer index to square of norm of momentum.
+		float MomentumNormSqr(std::size_t i) const;
 		// Start simulation
 		VkResult Start();
 		// Wait for simulation to finish
