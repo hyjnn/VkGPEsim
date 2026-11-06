@@ -40,3 +40,13 @@ target_include_directories(GPEsim_exe PRIVATE src)
 target_link_libraries(GPEsim_exe PRIVATE sim_backend)
 target_compile_features(GPEsim_exe PRIVATE cxx_std_23)
 set_property(TARGET GPEsim_exe PROPERTY OUTPUT_NAME GPEsim)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	target_compile_options(GPEsim_exe PRIVATE
+        $<$<CONFIG:RelWithDebInfo>:-pg>
+    )
+
+    target_link_options(GPEsim_exe PRIVATE
+        $<$<CONFIG:RelWithDebInfo>:-pg>
+    )
+endif()

@@ -40,7 +40,7 @@ namespace gpe {
 		std::ofstream outfile(filename, mode);
 
 		if (!outfile.is_open()) {
-			std::print("Failed to open file {}", filename);
+			std::print("Failed to open file {}\n", filename);
 			return false;
 		}
 		
@@ -262,7 +262,7 @@ namespace gpe {
 		};
 		res = vkBeginCommandBuffer(commandBuffer, &beginInfo);
 		if (res) {
-			std::print("Command buffer begin failed, error code {}", static_cast<int>(res));
+			std::print("Command buffer begin failed, error code {}\n", static_cast<int>(res));
 			return res;
 		}
 
