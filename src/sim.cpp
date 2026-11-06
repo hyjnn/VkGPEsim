@@ -82,7 +82,9 @@ namespace gpe {
 		                          gpu, buffer, memAllocInfo);
 		::gpe::AllocateMemory(gpu, buffer, memAllocInfo, memory);
 		initializeVkFFT(&app, config);
-		
+#ifndef NDEBUG
+		std::print("Using GPU ID: {}\n", gpu.physicalDeviceProperties.deviceName);
+#endif
 		launchParams.buffer = &buffer;
 		launchParams.commandBuffer = &commandBuffer;
 	}
