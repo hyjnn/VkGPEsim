@@ -8,6 +8,7 @@
 #pragma once
 #include <concepts>
 #include <cmath>
+#include <generator>
 #include <stdexcept>
 #include <vector>
 
@@ -42,6 +43,9 @@ public:
     requires (std::is_convertible_v<Idx, std::size_t> && ...)
     constexpr const T &operator[](Idx ...idx) const;
 
+    T &operator[](const std::vector<std::size_t> &MDi);
+    const T &operator[](const std::vector<std::size_t> &MDi) const;
+
     // Iterators, getters etc.
 
     constexpr auto begin() {
@@ -70,6 +74,8 @@ public:
     constexpr const std::vector<std::size_t> &shape() const {
         return m_shape;
     }
+
+    std::generator<std::vector<std::size_t>> MDIndexGen();
 
     constexpr MDVector<T>& operator+=(MDVector<T>) requires Addable<T>; //Elementwise addition.
     constexpr MDVector<T>& operator-=(MDVector<T>) requires Subtractable<T>; //Elementwise subtraction.
@@ -103,6 +109,7 @@ private:
     
     constexpr void calc_steps();
 
+    constexpr std::size_t calc_index(const std::vector<size_t> &MDi) const;
     template<typename ...Idx>
     requires (std::is_convertible_v<Idx, std::size_t> && ...)
     constexpr std::size_t calc_index(Idx ...idx) const;
@@ -139,17 +146,26 @@ constexpr MDVector<T>::MDVector(std::vector<std::size_t> shape, const T &fill_va
     calc_steps();
 }
 
+
+// This function DOES NOT check if the appropriate number of indices was passed
+template<typename T>
+constexpr std::size_t MDVector<T>::calc_index(const std::vector<std::size_t>& MDi) const {
+    std::size_t index = 0;
+    for (std::size_t i = 0; i < m_steps.size(); i++) {
+        index += MDi[i] * m_steps[i];
+    }
+
+    return index;
+}
+
+// This function DOES NOT check if the appropriate number of indices was passed
 template<typename T>
 template<typename... Idx>
 requires (std::is_convertible_v<Idx, std::size_t> && ...)
 constexpr std::size_t MDVector<T>::calc_index(Idx... idx) const {
+    // Since C++20, vectors have constexpr initialization semantics etc.
     std::vector<std::size_t> indices { static_cast<std::size_t>(idx)... };
-    std::size_t index = 0;
-    for (std::size_t i = 0; i < m_steps.size(); i++) {
-        index += indices[i] * m_steps[i];
-    }
-
-    return index;
+    return calc_index(indices);
 }
 
 template<typename T>
@@ -164,6 +180,16 @@ template<typename... Idx>
 requires (std::is_convertible_v<Idx, std::size_t> && ...)
 constexpr const T &MDVector<T>::operator[](Idx... idx) const {
     return data[calc_index(idx...)];
+}
+
+template<typename T>
+T &MDVector<T>::operator[](const std::vector<std::size_t> &MDi) {
+    return data[calc_index(MDi)];
+}
+
+template<typename T>
+const T &MDVector<T>::operator[](const std::vector<std::size_t> &MDi) const {
+    return data[calc_index(MDi)];
 }
 
 template <typename T>
@@ -206,4 +232,17 @@ constexpr MDVector<T> &MDVector<T>::operator/=(T scalar) requires Divisble<T> {
 	}
 
 	return *this;
+}
+
+template<typename T>
+std::generator<std::vector<std::size_t>> MDVector<T>::MDIndexGen() {
+    std::vector<std::size_t> MDIndex(m_shape.size(), 0);
+    for (std::size_t i = 0; i < size(); i++) {
+	co_yield MDIndex;
+	for (std::size_t current_dim = m_shape.size(); current_dim--;) {
+	    MDIndex[current_dim]++;
+	    if (MDIndex[current_dim] < m_shape[current_dim]) break; // No carry to carry
+	    MDIndex[current_dim] = 0;
+	}
+    }
 }

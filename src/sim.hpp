@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <cstdint>
@@ -15,6 +16,8 @@
 #include "MDVector.hpp"
 
 // Units: hbar = m = a_s = 1 (this sets mass, length and time units)
+// Using C-style indexing (last dim is contiguous)
+// NB VkFFT uses Fortran-style indexing, this only3 really matters when specifying FFT dimensions.
 
 /* Improvements and possible optimizations:
  * - Add multiple dimensions
@@ -64,10 +67,8 @@ namespace gpe {
 	// Helper for constructing MDVectors that hold Wavefunctions
 	template<typename T>
 	inline MDVector<T> CreateWavefuncVector(const std::vector<std::size_t> &sim_size) {
-		std::vector<std::size_t> real_size(sim_size.size());
-		for (std::size_t i = 0; i < sim_size.size(); i++) {
-			real_size[i] = 2 * sim_size[i];
-		}
+		std::vector<std::size_t> real_size(sim_size);
+		real_size.back() *= 2; // Make space for imaginary parts
 
 		return MDVector<T>(real_size, 0);
 	}
@@ -81,7 +82,7 @@ namespace gpe {
 
 		float g = 4 * std::numbers::pi * 2;
 		std::complex<float> dt;
-		std::vector<std::size_t> mid_index; // index corresponding to x=0, initialized as shape[i]/2
+		std::vector<std::size_t> zero_index; // index corresponding to x=0, initialized as the middle
 		std::function<float(const std::vector<float> &)> potential;
 
 		const std::vector<std::size_t> &shape() {
@@ -128,19 +129,29 @@ namespace gpe {
 	};
 	
 	// Create GP eq simulation with dx = xi/r
-	inline Simulation CreateGPESim(float length, float g, float rx, std::optional<float> dt = std::nullopt) {
-		float dx;
+	inline Simulation CreateGPESim(const std::vector<float> &length, float g,
+	                               const std::vector<float> &rx, std::optional<float> dt = std::nullopt) {
+		std::vector<float> dx(length.size());
 		if (g == 0) {
-			dx = length / rx;
+			std::ranges::transform(length, rx, dx.begin(),
+			                       [](float l, float r){ return l/r; });
 		}
 		else {
-			dx = std::sqrt(length / g) / rx;
+			std::ranges::transform(length, rx, dx.begin(),
+			                       [g](float l, float r){ return std::sqrt(l/g)/r; });
 		}
-		Simulation result({ static_cast<std::size_t>(length / dx) });
-		result.Setdx({ dx });
+
+		std::vector<std::size_t> shape(length.size());
+		std::ranges::transform(length, dx, shape.begin(),
+		                       [](float l, float d){ return static_cast<std::size_t>(l/d); });
+		Simulation result(shape);
+		result.Setdx(dx);
 		result.g = g;
 
-		if (!dt) dt = 2 * dx*dx / 5;
+		if (!dt) {
+			float dx_min = std::ranges::min(dx);
+			dt = 2 * dx_min*dx_min / 5;
+		}
 		result.dt = *dt;
 
 		return result;

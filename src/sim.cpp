@@ -22,9 +22,10 @@ namespace gpe {
 	namespace {
 		// Saves shape vector to numpy .npy format friendly string 
 		std::string ShapeToNpy(std::vector<std::size_t> shape) {
+			shape.back() /= 2;
 			if (shape.size() == 0) return "(0,)";
-			if (shape.size() == 1) return std::format("({},)", shape[0] / 2);
-			std::string output = std::format("({:d}", shape[0] / 2);
+			if (shape.size() == 1) return std::format("({},)", shape[0]);
+			std::string output = std::format("({:d}", shape[0]);
 
 			for (auto i = shape.begin() + 1; i != shape.end(); i++) {
 				output += std::format(", {:d}", *i);
@@ -68,12 +69,12 @@ namespace gpe {
 	Simulation::Simulation(const std::vector<uint64_t> &dims) {
 		config.FFTdim = dims.size();
 		m_shape = dims;
-		mid_index.resize(dims.size());
+		zero_index.resize(dims.size());
 		m_dx.resize(dims.size());
 		m_dp.resize(dims.size());
 		config.bufferSize = new uint64_t(sizeof(float) * 2);
 		for (std::size_t i = 0; i < dims.size(); i++) {
-			mid_index[i] = dims[i] / 2;
+			zero_index[i] = dims[i] / 2;
 			m_dx[i] = 1;
 			m_dp[i] = 2*std::numbers::pi/m_dx[i]/m_shape[i];
 			config.size[i] = dims[i];
@@ -101,7 +102,8 @@ namespace gpe {
 
 	void Simulation::Setdx(std::vector<float> new_dx) {
 		m_dx = new_dx;
-		std::transform(m_dx.begin(), m_dx.end(), m_dp.begin(), [](float val){ return val/2; });
+		std::ranges::transform(m_dx, m_shape, m_dp.begin(), [](float dx, float N)
+		                                                    { return 2 * std::numbers::pi / dx / N; });
 	}
 
 	const std::vector<float> &Simulation::Getdx() const {
@@ -242,16 +244,18 @@ namespace gpe {
 		}
 	}
 
-	std::vector<float> Simulation::PhysPos(std::size_t i) const {	
+	std::vector<float> Simulation::PhysPos(std::size_t i) const {
 		std::vector<float> pos(m_shape.size(), 0);
 
-		for (std::size_t j = 0; j < pos.size(); j++) {
+		for (std::size_t j = pos.size(); j--;) {
 			pos[j] += (i % m_shape[j]) * m_dx[j];
+			pos[j] -= zero_index[j] * m_dx[j];
 			i /= m_shape[j];
 		}
 
 		return pos;
 	}
+
 	float Simulation::MomentumNormSqr(std::size_t i) const {			
 		float k2 = 0;
 

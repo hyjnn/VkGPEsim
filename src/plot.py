@@ -22,20 +22,23 @@ if __name__ == "__main__":
 
     data = np.load(filename)
     # xs = np.arange(data.size) - data.size // 2
-    dx = 10 / 800
-    xmin = -1 * data.size // 2 * dx
-    xmax = (data.size // 2 - 1) * dx
-    xs = np.linspace(xmin, xmax, data.size)
+    dx = 10 / 500
+    xmin = -1 * data.shape[0] // 2 * dx
+    xmax = (data.shape[0] // 2 - 1) * dx
+    xs = np.linspace(xmin, xmax, data.shape[0])
 
     fig, ax = plt.subplots(dpi = 300)
 
     ps = np.pow(np.abs(data), 2)
-    ax.plot(xs, ps)
+    if len(data.shape) == 1:
+        ax.plot(xs, ps)
+        mean = np.average(xs, weights = ps)
+        print("Mean = {}, standard deviation = {}".format(mean, np.sqrt(np.average((xs - mean)**2, weights = ps))))
+    elif len(data.shape) == 2:
+        img = ax.imshow(ps, origin="lower")
+        fig.colorbar(img)
 
-    mean = np.average(xs, weights = ps)
-    print("Mean = {}, standard deviation = {}".format(mean, np.sqrt(np.average((xs - mean)**2, weights = ps))))
-
-    if not no_fit:
+    if (not no_fit) and (len(data.shape) == 1):
         par, cov = curve_fit(gaussian, xs, ps)
         ax.plot(xs, gaussian(xs, *par))
         print("Fit mean = {}, fit standard deviation = {}".format(par[1], par[2]))
