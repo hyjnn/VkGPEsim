@@ -2,12 +2,13 @@
 #include "MDVector.hpp"
 #include "config.hpp"
 
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <complex>
 #include <cstdlib>
 #include <fstream>
-#include <iostream>
+#include <functional>
 #include <numbers>
 #include <numeric>
 #include <print>
@@ -15,6 +16,19 @@
 #include <string>
 
 using namespace std::complex_literals;
+
+float IntegerPower(float base, unsigned long exp) {
+	if (exp == 0) return 1; // 0^0=1 i guess whatever
+	if (exp == 1) return base;
+	float result = base;
+
+	for (unsigned long mask = 1ul << (std::bit_width(exp)-2); mask; mask >>= 1) {
+		result *= result;
+		if (exp & mask) result *= base;
+	}
+
+	return result;
+}
 
 void MomentumState(MDVector<float> &wavefunc, unsigned mode, float dx) {
 	std::complex<float> exponent = 2if * (std::numbers::pi_v<float> * mode);
@@ -27,15 +41,31 @@ void MomentumState(MDVector<float> &wavefunc, unsigned mode, float dx) {
 	gpe::Normalize(wavefunc, dx);
 }
 
-void HarmonicBaseState(MDVector<float> &wavefunc, float omega, float dx) {
-	float A = std::pow(omega / std::numbers::pi, .25f);
+void HarmonicBaseState(MDVector<float> &wavefunc, float omega, std::vector<float> dx) {
+	float A = std::pow(omega / std::numbers::pi, .25f*dx.size());
 	float exponent = -1 * omega / 2;
 	
-	std::size_t N = wavefunc.size() / 2;
-	for (std::size_t i = 0; i < wavefunc.size(); i += 2) {
-		float x = i * dx/2 - N * dx / 2;
-		float exp = std::exp(exponent * x*x);
-		wavefunc[i] = A*exp;
+	std::vector<std::size_t> Nx = wavefunc.shape();
+	Nx.back() /= 2;
+	
+	bool imag_flag = false; // Ignore imaginary guys
+	auto indices = wavefunc.MDIndexGen();
+	for (auto MDi : indices) {
+		if (imag_flag) {
+			imag_flag = false;
+			wavefunc[MDi] = 0;
+			continue;
+		}
+
+		MDi.back() /= 2;
+		auto x_sqr = std::views::zip_transform([](std::size_t i, float d, std::size_t N)
+		                                        { return IntegerPower(i*d - N*d/2, 2); },
+							MDi, dx, Nx);
+		float r_sqr = std::reduce(x_sqr.begin(), x_sqr.end(), .0f);
+		float exp = std::exp(exponent * r_sqr);
+		MDi.back() *= 2;
+		wavefunc[MDi] = A*exp;
+		imag_flag = true;
 	}
 }
 
@@ -82,29 +112,34 @@ void ProjectPerp(MDVector<float> &projectee, MDVector<float> projector) {
 }
 
 struct NullPotential {
-	float operator()(float x) {
+	float operator()(const std::vector<float> &x) {
 		return 0.f;
 	}
 };
 
 struct HarmonicPotential {
-	float coeff = 0.5f; // In our units this is just omega^2/2, base-state energy is sqrt(coeff/2)
-	float operator()(float x) {
-		return coeff*x*x;
+	float coeff = 0.5f; // In our units coeff=omega^2/2, omega=sqrt(2*coeff) base-state energy is sqrt(coeff/2)
+	float operator()(const std::vector<float> &x) {
+		float r_sqr = std::reduce(x.begin(), x.end(), 1.0,
+		                          [](float acc, float val){ return acc*val*val; });
+		return coeff*r_sqr;
 	}
 };
 
 struct GaugedHarmonicPotential {
 	float coeff = 0.5f;
 	float gauge = 0.5f;
-	float operator()(float x) {
-		return coeff*x*x - gauge;
+	float operator()(const std::vector<float> &x) {
+		float r_sqr = std::reduce(x.begin(), x.end(), 1.0,
+		                          [](float acc, float val){ return acc*val*val; });
+		return coeff*r_sqr - gauge;
 	}
 };
 
 int main(int argc, char **argv) {
 	float space_length, space_step_ratio, g, time_step, soliton_distance;
-	std::size_t sim_length;
+	bool imag_time;
+	std::size_t sim_duration;
 	std::string config_filename = gpe::GetConfigFile(argc, argv);
 
 	if (config_filename.at(0) == '\0') {
@@ -114,29 +149,27 @@ int main(int argc, char **argv) {
 
 	gpe::ParamReader parser;
 	parser.DefineParams("x_span", space_length, "g", g,
-	                    "x_step_ratio", space_step_ratio, "sim_duration", sim_length,
-			    "time_step", time_step, "soliton_distance", soliton_distance);
+	                    "x_step_ratio", space_step_ratio, "sim_duration", sim_duration,
+			    "time_step", time_step, "soliton_distance", soliton_distance,
+			    "imag_time", imag_time);
 
 	parser.ReadParams(std::ifstream(config_filename));
 
-	gpe::Simulation testsim = gpe::CreateGPESim(space_length, g, space_step_ratio, time_step);
-	testsim.dt *= -1.0if;
+	float coeff = 0.5f;
+	gpe::Simulation testsim = gpe::CreateGPESim({ space_length, space_length }, g,
+	                                            { space_step_ratio, space_step_ratio }, time_step);
+	if (imag_time) testsim.dt *= -1.0if;
 	testsim.potential = NullPotential();
 	MDVector<float> wavefunc = gpe::CreateWavefuncVector<float>(testsim.shape());
-
-	DoubleSoliton(wavefunc, soliton_distance, std::sqrt(space_length / g), testsim.dx);
-	// RandomState(wavefunc, testsim.dx);
-	// HarmonicBaseState(wavefunc, 1, testsim.dx);
-	// KickState(wavefunc, 1, testsim.dx);
-
+	// HarmonicBaseState(wavefunc, std::sqrt(2*coeff), testsim.Getdx());
+	RandomState(wavefunc, testsim.Getdx(0));
 	testsim.WriteWavefunc(wavefunc);
-	testsim.Run(5*sim_length);
-	testsim.dt *= 1.0if;
-	testsim.Run(sim_length);
-	testsim.ReadWavefunc(wavefunc);
+	
+	testsim.Run(sim_duration);
 
+	testsim.ReadWavefunc(wavefunc);
 	std::print("Base state norm: {}\n", std::accumulate(wavefunc.begin(), wavefunc.end(), 0.f, 
-	           [](float acc, float next){ return acc + next*next; })*testsim.dx);
+	           [](float acc, float next){ return acc + next*next; })*testsim.Getdx(0));
 	
 	gpe::SaveWavefunc(wavefunc, "results/test.npy");
 }
