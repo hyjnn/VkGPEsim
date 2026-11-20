@@ -120,8 +120,8 @@ struct NullPotential {
 struct HarmonicPotential {
 	float coeff = 0.5f; // In our units coeff=omega^2/2, omega=sqrt(2*coeff) base-state energy is sqrt(coeff/2)
 	float operator()(const std::vector<float> &x) {
-		float r_sqr = std::reduce(x.begin(), x.end(), 1.0,
-		                          [](float acc, float val){ return acc*val*val; });
+		float r_sqr = std::reduce(x.begin(), x.end(), 0.f,
+		                          [](float acc, float val){ return acc + val*val; });
 		return coeff*r_sqr;
 	}
 };
@@ -161,15 +161,14 @@ int main(int argc, char **argv) {
 	if (imag_time) testsim.dt *= -1.0if;
 	testsim.potential = NullPotential();
 	MDVector<float> wavefunc = gpe::CreateWavefuncVector<float>(testsim.shape());
-	// HarmonicBaseState(wavefunc, std::sqrt(2*coeff), testsim.Getdx());
-	RandomState(wavefunc, testsim.Getdx(0));
+	HarmonicBaseState(wavefunc, std::sqrt(2*coeff), testsim.Getdx());
+	// RandomState(wavefunc, testsim.Getdx(0));
 	testsim.WriteWavefunc(wavefunc);
 	
 	testsim.Run(sim_duration);
 
 	testsim.ReadWavefunc(wavefunc);
-	std::print("Base state norm: {}\n", std::accumulate(wavefunc.begin(), wavefunc.end(), 0.f, 
-	           [](float acc, float next){ return acc + next*next; })*testsim.Getdx(0));
+	std::print("Base state norm: {}\n", gpe::Norm(wavefunc, testsim.GetdV()));
 	
 	gpe::SaveWavefunc(wavefunc, "results/test.npy");
 }

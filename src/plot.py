@@ -37,6 +37,7 @@ if __name__ == "__main__":
     elif len(data.shape) == 2:
         img = ax.imshow(ps, origin="lower")
         fig.colorbar(img)
+        print(f"Norm: {np.sum(ps)/10/10}\n")
 
     if (not no_fit) and (len(data.shape) == 1):
         par, cov = curve_fit(gaussian, xs, ps)

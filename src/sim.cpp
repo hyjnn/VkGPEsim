@@ -5,6 +5,7 @@
 #include <complex>
 #include <format>
 #include <fstream>
+#include <functional>
 #include <numbers>
 #include <numeric>
 #include <print>
@@ -116,6 +117,10 @@ namespace gpe {
 		return m_dx.at(i);
 	}
 
+	float Simulation::GetdV() const {
+		return std::reduce(m_dx.begin(), m_dx.end(), 1.0f, std::multiplies<float>()); 
+	}
+
 	VkResult Simulation::WriteWavefunc(const MDVector<float>& source) {
 		VkResult res = VK_SUCCESS;
 		void *raw_data;
@@ -183,7 +188,7 @@ namespace gpe {
 		std::size_t N = *config.bufferSize / sizeof(float);
 
 		for (std::size_t i = 0; i < N; i += 2) {
-			float k_sqr = MomentumNormSqr(i);
+			float k_sqr = MomentumNormSqr(i / 2);
 			std::complex<float> ekin = -1.0if * k_sqr * time_step / 2.f;
 			std::complex<float> eigenexp = std::exp(ekin);
 			std::complex<float> prod = (float_data[i] + float_data[i+1]*1.0if) * eigenexp;
@@ -229,9 +234,7 @@ namespace gpe {
 		}
 		// For numerical stability
 		if (time_step.imag()) {
-			norm *= std::reduce(m_dx.begin(), m_dx.end(), 1.0f,
-					    [](float acc, float val){ return acc*val; });
-			norm = std::sqrt(norm);
+			norm = std::sqrt(norm*GetdV());
 			std::transform(float_data, float_data + N, float_data,
 				       [norm](float val){ return val / norm; });
 		}
@@ -261,7 +264,6 @@ namespace gpe {
 	float Simulation::MomentumNormSqr(std::size_t i) const {			
 		float k2 = 0;
 
-		i /= 2; // Get rid of double counting due to complex values
 		for (std::size_t j = 0; j < m_dx.size(); j++) {
 			long eff_i = i % m_shape[j];
 			if (eff_i > m_shape[j]/2) {

@@ -20,7 +20,6 @@
 // NB VkFFT uses Fortran-style indexing, this only3 really matters when specifying FFT dimensions.
 
 /* Improvements and possible optimizations:
- * - Add multiple dimensions
  * - Add mid step
  * - Add custom float types
  * - Overall code cleanup
@@ -31,12 +30,14 @@
  */
 
 namespace gpe {
-	inline void Normalize(MDVector<float> &wavefunc, float dx) {
-		float norm = std::reduce(wavefunc.begin(), wavefunc.end(), 0.f,
-		                         [](float acc, float next){ return acc + next*next; })*dx;
-		norm = std::sqrt(norm);
+	inline float Norm(MDVector<float> &wavefunc, float dV) {	
+		double norm = std::accumulate(wavefunc.begin(), wavefunc.end(), 0.,
+					      [](double acc, double next){ return acc + next*next; });
+		return std::sqrt(norm*dV);
+	}
 
-		wavefunc /= norm;
+	inline void Normalize(MDVector<float> &wavefunc, float dV) {
+		wavefunc /= Norm(wavefunc, dV);
 	}
 
 	template<typename T>
@@ -93,6 +94,8 @@ namespace gpe {
 		const std::vector<float> &Getdx() const;
 		// Get ith component of dx (i.e. dx_i)
 		const float &Getdx(std::size_t i) const;
+		// Get grid cell n-volume (i.e. dx_0*dx_1*...)
+		float GetdV() const;
 
 		VkResult WriteWavefunc(const MDVector<float> &source);
 		VkResult ReadWavefunc(MDVector<float> &dest);
