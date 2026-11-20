@@ -4,12 +4,10 @@
 #include <cstring>
 #include <complex>
 #include <format>
-#include <fstream>
 #include <functional>
 #include <numbers>
 #include <numeric>
 #include <print>
-#include <string>
 #include <vector>
 
 #include <vulkan/vulkan_core.h>
@@ -20,53 +18,6 @@
 #include "vkHelpers.hpp"
 
 namespace gpe {
-	namespace {
-		// Saves shape vector to numpy .npy format friendly string 
-		std::string ShapeToNpy(std::vector<std::size_t> shape) {
-			shape.back() /= 2;
-			if (shape.size() == 0) return "(0,)";
-			if (shape.size() == 1) return std::format("({},)", shape[0]);
-			std::string output = std::format("({:d}", shape[0]);
-
-			for (auto i = shape.begin() + 1; i != shape.end(); i++) {
-				output += std::format(", {:d}", *i);
-			}
-			output += ")";
-
-			return output;
-		}
-	}
-
-	bool SaveWavefunc(const MDVector<float> &src, std::string filename, bool overwrite) {
-		std::ios::openmode mode = std::ios::binary;
-		mode |= (overwrite ? std::ios::trunc : std::ios::noreplace);
-		std::ofstream outfile(filename, mode);
-
-		if (!outfile.is_open()) {
-			std::print("Failed to open file {}\n", filename);
-			return false;
-		}
-		
-		std::string shape = ShapeToNpy(src.shape());
-		// For now assumes we are using 32-bit floats
-		std::string header = "{'descr': '<c8',"
-				     " 'fortran_order': True,"
-				     " 'shape': " + shape + ", }";
-
-		unsigned pad_len = (header.size() + 10) % 64;
-		pad_len = 63 - pad_len;
-		header += std::string(pad_len, '\x20'); // Pad with spaces
-		header += '\n';
-		
-		std::array<char, 2> header_len_bytes = { static_cast<char>(header.size() & 0xff),
-		                                         static_cast<char>((header.size() >> 8) & 0xff) };
-		std::string preheader = std::string("\x93NUMPY\x01") + '\x00' + header_len_bytes[0] + header_len_bytes[1];
-		outfile << preheader + header;	
-		outfile.write(reinterpret_cast<const char *>(src.raw_data()), src.size() * sizeof(float));
-
-		return true;
-	}
-
 	Simulation::Simulation(const std::vector<uint64_t> &dims) {
 		config.FFTdim = dims.size();
 		m_shape = dims;

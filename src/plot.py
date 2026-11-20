@@ -38,6 +38,14 @@ if __name__ == "__main__":
         img = ax.imshow(ps, origin="lower")
         fig.colorbar(img)
         print(f"Norm: {np.sum(ps)/10/10}\n")
+    elif len(data.shape) == 3:
+        mids = [int(dim/2) for dim in ps.shape]
+        img = ax.imshow(ps[mids[0], :, :], origin="lower")
+        fig.colorbar(img)
+        print(f"Norm: {np.sum(ps)/10/10}\n")
+        xs = np.arange(ps.shape[0])
+        mean = np.average(xs, weights = ps[:, mids[1], mids[2]])
+        print("Stupid standard deviation = {}".format(np.sqrt(np.average((xs - mean)**2, weights = ps[:, mids[1], mids[2]]))))
 
     if (not no_fit) and (len(data.shape) == 1):
         par, cov = curve_fit(gaussian, xs, ps)

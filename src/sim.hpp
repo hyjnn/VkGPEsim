@@ -8,7 +8,6 @@
 #include <numbers>
 #include <numeric>
 #include <optional>
-#include <string>
 #include <vulkan/vulkan_core.h>
 #include <utils_vkFFT/utils_VkFFT.h>
 #include "vkFFT/vkFFT_Structs/vkFFT_Structs.h"
@@ -73,8 +72,6 @@ namespace gpe {
 
 		return MDVector<T>(real_size, 0);
 	}
-
-	bool SaveWavefunc(const MDVector<float> &src, std::string filename, bool overwrite = true);
 
 	class Simulation {
 	public:

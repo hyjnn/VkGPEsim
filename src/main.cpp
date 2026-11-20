@@ -1,14 +1,14 @@
 #include "sim.hpp"
 #include "MDVector.hpp"
-#include "config.hpp"
+#include "simio.hpp"
 
 #include <bit>
 #include <chrono>
 #include <cmath>
 #include <complex>
 #include <cstdlib>
-#include <fstream>
 #include <functional>
+#include <fstream>
 #include <numbers>
 #include <numeric>
 #include <print>
@@ -156,8 +156,8 @@ int main(int argc, char **argv) {
 	parser.ReadParams(std::ifstream(config_filename));
 
 	float coeff = 0.5f;
-	gpe::Simulation testsim = gpe::CreateGPESim({ space_length, space_length }, g,
-	                                            { space_step_ratio, space_step_ratio }, time_step);
+	gpe::Simulation testsim = gpe::CreateGPESim({ space_length, space_length, space_length }, g,
+	                                            { space_step_ratio, space_step_ratio, space_step_ratio }, time_step);
 	if (imag_time) testsim.dt *= -1.0if;
 	testsim.potential = NullPotential();
 	MDVector<float> wavefunc = gpe::CreateWavefuncVector<float>(testsim.shape());

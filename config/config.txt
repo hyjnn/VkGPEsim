@@ -1,8 +1,9 @@
 x_span=10
 //g=125.663706144
 g=0
-x_step_ratio=100
+x_step_ratio=50
 sim_duration=173
+//sim_duration=0
 time_step=1e-2
 soliton_distance=2
 imag_time=0
